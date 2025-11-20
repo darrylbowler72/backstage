@@ -6,3 +6,8 @@ packages/*/src
 packages/*/node_modules
 plugins
 *.local.yaml
+
+# IDE directories
+.vs
+.vscode
+.idea
