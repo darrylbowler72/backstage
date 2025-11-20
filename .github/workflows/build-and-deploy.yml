@@ -1,0 +1,142 @@
+name: Build and Deploy Backstage to Podman
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: backstage-app
+  IMAGE_TAG: ${{ github.sha }}
+  REGISTRY: localhost
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy to Podman
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code manually
+        shell: bash
+        run: |
+          echo "Cleaning workspace..."
+          # Use find to delete all files and directories, including hidden ones
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete || true
+
+          echo "Configuring git to skip SSL verification..."
+          git config --global http.sslVerify false
+
+          echo "Cloning repository..."
+          git clone --depth=1 --branch=${{ github.ref_name }} https://github.com/${{ github.repository }}.git "$GITHUB_WORKSPACE"
+
+          if [ ! -d "$GITHUB_WORKSPACE/.git" ]; then
+            echo "ERROR: Git clone failed!"
+            exit 1
+          fi
+
+          cd "$GITHUB_WORKSPACE"
+          echo "Repository cloned successfully"
+          ls -la
+
+      - name: Check and restart Podman machine if needed
+        shell: bash
+        run: |
+          echo "Checking Podman machine status..."
+          if ! podman machine list 2>/dev/null | grep -q "Running"; then
+            echo "Podman machine is not running, attempting to start..."
+            podman machine stop podman-machine-default 2>/dev/null || true
+            sleep 2
+            podman machine start podman-machine-default || {
+              echo "Failed to start Podman machine, attempting recovery..."
+              wsl.exe --terminate podman-machine-default || true
+              sleep 5
+              podman machine start podman-machine-default
+            }
+          fi
+          echo "Podman machine is running"
+
+      - name: Verify Podman installation
+        shell: bash
+        run: |
+          podman --version
+          podman info
+
+      - name: Build Backstage image with Podman
+        shell: bash
+        run: |
+          podman build \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            -f Dockerfile \
+            .
+
+      - name: List images
+        shell: bash
+        run: podman images | grep ${{ env.IMAGE_NAME }}
+
+      - name: Stop existing container (if any)
+        continue-on-error: true
+        shell: bash
+        run: |
+          podman stop backstage-app || true
+          podman rm backstage-app || true
+
+      - name: Run container with Podman
+        shell: bash
+        run: |
+          podman run -d \
+            --name backstage-app \
+            -p 7007:7007 \
+            --restart unless-stopped \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Wait for container to be healthy
+        shell: bash
+        run: |
+          echo "Waiting for Backstage to start..."
+          for i in {1..30}; do
+            if podman exec backstage-app curl -f http://localhost:7007/healthcheck 2>/dev/null; then
+              echo "Backstage is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i: Container not ready yet..."
+            sleep 5
+          done
+          echo "Container failed to become healthy"
+          exit 1
+
+      - name: Display container logs
+        if: always()
+        shell: bash
+        run: podman logs backstage-app
+
+      - name: Show running containers
+        shell: bash
+        run: podman ps
+
+      - name: Clean up old images
+        shell: bash
+        run: |
+          # Keep last 5 images, remove older ones
+          podman images --format "{{.ID}} {{.Created}}" | \
+            grep ${{ env.IMAGE_NAME }} | \
+            sort -k2 -r | \
+            tail -n +6 | \
+            awk '{print $1}' | \
+            xargs -r podman rmi -f || true
+
+      - name: Display deployment info
+        shell: bash
+        run: |
+          echo "=========================================="
+          echo "Deployment successful!"
+          echo "=========================================="
+          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          echo "Container: backstage-app"
+          echo "Access URL: http://localhost:7007"
+          echo "=========================================="
