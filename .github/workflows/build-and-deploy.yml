@@ -70,6 +70,7 @@ jobs:
         shell: bash
         run: |
           podman build \
+            --no-cache \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
             -f Dockerfile \
