@@ -3,7 +3,7 @@ app:
   baseUrl: http://localhost:3000
 
 organization:
-  name: My Company
+  name: darrylbowler72
 
 backend:
   # Used for enabling authentication, secret is shared by all backend plugins
@@ -67,6 +67,10 @@ auth:
   providers:
     # See https://backstage.io/docs/auth/guest/provider
     guest: {}
+    github:
+      development:
+        clientId: ${GITHUB_CLIENT_ID}
+        clientSecret: ${GITHUB_CLIENT_SECRET}
 
 scaffolder:
   # see https://backstage.io/docs/features/software-templates/configuration for software template options
@@ -103,6 +107,12 @@ catalog:
     #   target: https://github.com/backstage/backstage/blob/master/packages/catalog-model/examples/acme-corp.yaml
     #   rules:
     #     - allow: [User, Group]
+
+    # GitHub discovery for darrylbowler72 repositories
+    - type: url
+      target: https://github.com/darrylbowler72/backstage/blob/master/catalog-info.yaml
+      rules:
+        - allow: [Component, System, API, Resource, Location]
 
 kubernetes:
   # see https://backstage.io/docs/features/kubernetes/configuration for kubernetes configuration options
