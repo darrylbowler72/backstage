@@ -81,6 +81,17 @@ catalog:
     pullRequestBranchName: backstage-integration
   rules:
     - allow: [Component, System, API, Resource, Location]
+  providers:
+    github:
+      providerId:
+        organization: 'darrylbowler72'
+        # catalogPath: '/catalog-info.yaml' # Commented out to discover all repos
+        filters:
+          # branch: 'master' # Removed to discover repos on any default branch (main or master)
+          repository: '.*'
+        schedule:
+          frequency: { minutes: 30 }
+          timeout: { minutes: 3 }
   locations:
     # Local example data, file locations are relative to the backend process, typically `packages/backend`
     - type: file

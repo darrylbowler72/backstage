@@ -54,3 +54,6 @@ e2e-test-report/
 
 # Cache
 .cache/
+
+# Claude Code local settings (may contain secrets)
+.claude/settings.local.json
